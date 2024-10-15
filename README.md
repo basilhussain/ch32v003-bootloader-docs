@@ -33,7 +33,7 @@ If one reads the manufacturer documentation, it may seem very straightforward. T
 
 Not really. While that configuration flag *does* indeed cause the MCU to execute the bootloader at power-on or reset, the bootloader only remains running under one very specific condition; otherwise it immediately instructs the chip to reset back into user application code. Because this happens imperceptibly quickly, this has the confusing effect of the `START_MODE` OB setting appearing to have no effect.
 
-> **Note:**
+> [!NOTE]
 > In some early revisions of CH32V003 chip, the `START_MODE` OB flag, no matter what value it's set to, has *no effect*. The chip always acts as though it is set to `1`. This means the chip will always be starting up via the bootloader, and you cannot turn that off. Chips with this behaviour can be identified by the presence of a zero in the 5th-from-last digit of the lot number (last line of marking on the chip). For example, lot number "4123**0**9C34" would be affected.
 
 What doesn't appear to be well documented (or, really, documented *at all*) is under what condition the factory bootloader will continue running. The only hint is in the description of the `MODE` bit of the `FLASH_STATR` register: "After *software* reset, you can switch to the BOOT area" (emphasis added). Accordingly, the CH32V003 bootloader does indeed check for that specific condition: the RCC peripheral's `RSTSCKR` register having the `SFTRSTF` (software reset) flag set to `1`. But, **only** that flag - all others **must** also be `0`.
@@ -170,7 +170,7 @@ The necessary sequence of commands for programming the flash of a microcontrolle
 8. Verify user flash (`0xA6`) - multiple, in order of lowest to highest address
 9. End and reset (`0xA2`)
 
-> **Important:**
+> [!IMPORTANT]
 > Some commands depend on state that is set by other commands, so it is recommended that you do not deviate from the above sequence. Any such dependencies are noted in the documentation of each command.
 
 Where only a particular operation is desired (e.g. just verifying current contents of flash), a subset of the above sequence can be used. To take the example of flash verification, one may use the following sub-sequence:
@@ -213,7 +213,7 @@ Note that the CH32V003 bootloader does not actually check that the given expecte
 
 The passphrase is comprised of just the specified 16-byte character string in the ASCII character set, without any additions such as a null termination byte.
 
-> **Important:**
+> [!IMPORTANT]
 > All other commands must be performed *after* this command. One side-effect of this command is to unlock the device's flash controller for writing, so if prior execution of any commands that modify flash contents is attempted, they will fail (possibly by hanging the device).
 
 A successful response payload consists of:
@@ -317,7 +317,7 @@ xor_key[6] = unique_id_checksum
 xor_key[7] = (xor_key[0] + device_variant) & 0xFF;
 ```
 
-> **Important:**
+> [!IMPORTANT]
 > This command must only be performed at some point *after* a read configuration `0xA7` command, because the bootloader only calculates the necessary unique ID checksum during execution of that command. Also, this command must be executed *prior* to any flash writing commands (`0xA5`).
 
 A successful response payload consists of:
@@ -344,7 +344,7 @@ An unsuccessful response payload consists of:
 | 4           | `0xFE`   | Indicates seed too short |
 | 5           | (random) |                          |
 
-> **Caution:**
+> [!CAUTION]
 > This command's error handling is flawed: it is impossible to tell the difference between a successful response that happens to give a key checksum value of `0xFE` and an actual unsuccessful response! Therefore, it is recommended that care is taken to always ensure the seed is of the minimum length, and then instead consider any non-zero checksum value an indicator of success.
 
 No error response is given where the seed is too long (i.e. greater than 60 bytes). In fact, the CH32V003 bootloader's logic will treat it as if it were a length between 56-59 bytes. However, it is still critical that seed length does not exceed 60 bytes, as otherwise the bootloader may suffer erroneous behaviour.
@@ -364,7 +364,7 @@ Command is sent with a payload containing the number of 1 kilobyte-size flash se
 
 The sector count represents how many bytes are being requested to be erased, counted from the start of user application flash up to an offset equal to the given count multiplied by 1,024. For example, a given count of 12 requests that from offset 0 to 12,287 be erased.
 
-> **Important:**
+> [!IMPORTANT]
 > The CH32V003 bootloader code for this command completely *ignores* the count parameter and always erases the *entire* user application flash. It is not possible to selectively erase only a portion of user flash with the factory bootloader on the CH32V003. (At a guess, this was presumably done as a compromise to fit the bootloader in to the limited space available on the CH32V003, because the code to properly implement would be too large.)
 
 The official WCHISPTool software only requests erasure of the smallest number of 1K-size flash sectors that will accommodate the size of firmware binary, but always a minimum of at least 8 sectors. The reasoning for this minimum is unclear.
@@ -407,7 +407,7 @@ for(int n = 0; n < data_len; n++) {
 }
 ```
 
-> **Important:**
+> [!IMPORTANT]
 > All flash writing commands must occur only *after* an XOR key command (`0xA3`) has been executed. Otherwise, data will almost certainly be decrypted incorrectly, and garbage written to flash.
 
 The official WCHISPTool software only ever sends up to 56 bytes of data per write command, but the bootloader can handle up to 64 bytes of data without problem. In fact, using the full 64-byte capability where possible will result in more expeditious flash programming, due to the minimisation of write buffering (discussed below).
@@ -428,13 +428,13 @@ The buffer is maintained and no writing to flash occurs until either of two cond
 
 The latter is used to handle the situation where there is no more firmware binary data to be sent, but there is still some buffered from the last write command. A further single finalisation write command with incremented offset and zero-length of data can be issued to get that buffered data written.
 
-> **Important:**
+> [!IMPORTANT]
 > It is recommended that one such zero-length-data final write command is *always* issued regardless of circumstance.
 
-> **Important:**
+> [!IMPORTANT]
 > Due to the convoluted logic of the buffering mechanism of the write command, it is also recommended that firmware binary writing commands are always issued in contiguous order of lowest to highest 'offset'.
 
-> **Important:**
+> [!IMPORTANT]
 > This command changes the internal reset target flag to be user application code. Unless subsequently changed by another command that modifies this flag, issuing an `0xA2` command after this one will reset back into user application code.
 
 A successful response payload consists of:
@@ -469,7 +469,7 @@ Note that the offset into flash is not an absolute address but a zero-based rela
 
 The data supplied must be encrypted with the pre-calculated XOR key (see command `0xA3`) and will be decrypted by the bootloader before comparison. For encryption method, see the documentation for the flash write command `0xA5`. Note also that the size of data must be a multiple of 8.
 
-> **Important:**
+> [!IMPORTANT]
 > This command maintains a temporary status flag recording whether verification has failed due to data mismatch. If one prior verify command has failed in this way, then all subsequent verification commands will immediately skip any data comparison and return with a failure result. Once set, this flag is cleared only by issuing an erasure command `0xA4` (or by resetting the microcontroller).
 
 A successful response payload consists of:
@@ -538,7 +538,7 @@ The individual bits in the mask value have the following representation:
 
 For example, USER & RDPR + DATA0 & DATA1 + WRPR = `0x07`; all = `0x1F`.
 
-> **Important:**
+> [!IMPORTANT]
 > The CH32V003 bootloader ignores the bitmask value and always returns *all* information, regardless of what has or has not been requested. (Again, this behaviour is probably a compromise made due to limited space for bootloader code.)
 
 A successful response payload consists of:
@@ -604,17 +604,17 @@ Command payload consists of a bitmask specifying which option byte elements are 
 
 For bitmask values, see the read configuration `0xA7` command.
 
-> **Important:**
+> [!IMPORTANT]
 > Writing of option bytes will *only* take place if bit flags for all of USER & RDPR, DATA0 & DATA1, and WRPR are set (i.e. bitmask ≥ `0x07`). Any other flags are ignored (e.g. BTVER, UID), because it is neither possible to supply data for or write that config information.
 
 When the option bytes are being written, the supplied inverse bytes (i.e. 'n' values) are ignored and instead calculated by the bootloader from the non-inverse values. For example, the given `nRDPR` value is ignored, and instead the value of `RDPR` is inverted and used for `nRDPR`.
 
 Also, similarly, because no inverted values for `nWRPRx` are supplied, they are also calculated in the same way from `WRPRx` values. Note also that the CH32V003 does not use `WRPR2` or `WRPR3`, so although the writing of those values will take effect, the values written are irrelevant.
 
-> **Warning:**
+> [!WARNING]
 > Be aware that when the `RDPR` byte is changed from any other value to `0xA5` (i.e. read-protection is changed to disabled from a formerly enabled state), this will cause the device to automatically perform an erasure of the *entire* user application flash!
 
-> **Important:**
+> [!IMPORTANT]
 > This command changes the internal reset target flag to be the bootloader. Unless subsequently changed by another command that modifies this flag, issuing an `0xA2` command after this one will reset back into the bootloader rather than the default of user application code.
 
 A successful response payload consists of:
